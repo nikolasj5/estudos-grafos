@@ -2,10 +2,11 @@
 #include <vector>
 #include <queue>
 #include <stack>
+#include <climits>
 
-extern "C" {
+//extern "C" {
   #include "mmio.h"
-}
+//}
 
 int main(int argc, char *argv[])
 {
@@ -89,7 +90,7 @@ int main(int argc, char *argv[])
     }
 
     for (int i = 0; i < M; i++){
-        printf("%d %d\n", i, order[i]);
+        printf("%d %d\n", i+1, order[i]);
     }
 /*
     FILE* outputFile;

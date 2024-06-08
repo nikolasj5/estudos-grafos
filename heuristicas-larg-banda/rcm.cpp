@@ -1,11 +1,9 @@
 #include <iostream>
 #include <vector>
 #include <queue>
-#include <climits>
+#include <algorithm>
 
-//extern "C" {
-  #include "mmio.h"
-//}
+#include "mmio.h"
 
 int main(int argc, char *argv[])
 {
@@ -13,24 +11,16 @@ int main(int argc, char *argv[])
     FILE* f;
     MM_typecode matcode;
     int M, N, nz;   
-    int firstVert;
 
-    if (argc < 3)
+    if (argc < 2)
 	{
-		fprintf(stderr, "Usage: %s [matrix-market-filename] [initial vertex]\n", argv[0]);
+		fprintf(stderr, "Usage: %s [martix-market-filename]\n", argv[0]);
 		exit(1);
 	}
     else    
     { 
         if ((f = fopen(argv[1], "r")) == NULL) {
             fprintf(stderr, "%s is not a valid mtx filename\n", argv[1]);
-            exit(1);
-        }
-
-        if (atoi(argv[2])-1 >= 0){
-            firstVert = atoi(argv[2])-1;
-        }else{
-            fprintf(stderr, "Vertex index starts in 1\n", argv[1]);
             exit(1);
         }
     }
@@ -46,48 +36,78 @@ int main(int argc, char *argv[])
     }
 
     std::vector<std::vector<double>> adjacency(M, std::vector<double>(N+2, 0));
+    std::vector<int> degrees;
     int fi, fj;
 
+    degrees.resize(M, 0);
     for (int i = 0; i < nz; i++){
         fscanf(f, "%d %d ", &fi, &fj);
         --fi;
         --fj;
         fscanf(f, "%lg\n", &adjacency[fi][fj]);
         adjacency[fj][fi] = adjacency[fi][fj];
+        degrees[fi]++;
+        degrees[fj]++;
     }
     fclose(f);
 
-    // Auxiliary variables for the bfs algorithm
+    // Auxiliary varibles for the RCM algorithm
     std::queue<int> bfsQueue;
-    std::vector<int> distances;
+    std::vector<int> result;
     std::vector<bool> alreadyVisited;
+    std::vector<std::pair<int,int>> orderAdj;
     int currDistance;
     int currVertex;
 
     // Initialization for aux variables
-    bfsQueue.push(firstVert);
-    distances.resize(M, INT_MAX);
-    distances[firstVert] = 0;
     alreadyVisited.resize(M, false);
-    alreadyVisited[firstVert] = true;
 
-    // BFS main loop
+    //First iteration with simple RCM lowest degree vertex
+    std::pair<int,int> lowest = {degrees[0], 0};
+    for (int i = 1; i < M; i++){
+        if (degrees[i] < lowest.first){
+            lowest = {degrees[i], i};
+        }
+    }
+    result.push_back(lowest.second);
+    alreadyVisited[lowest.second] = true;
+
+    orderAdj.clear();    
+    for (int i = 0; i < M; i++){
+        if (adjacency[lowest.second][i] != 0){
+            orderAdj.push_back({degrees[i],i});
+        }
+    }
+    std::sort(orderAdj.begin(), orderAdj.end());
+
+    for (int i = 0; i < orderAdj.size(); i++){
+        bfsQueue.push(orderAdj[i].second);
+    }
+
+    // RCM main loop
     while (!bfsQueue.empty()){
         currVertex = bfsQueue.front();
         bfsQueue.pop();
-        currDistance = distances[currVertex];
+        if (alreadyVisited[currVertex] == false){
+            result.push_back(currVertex);
+            alreadyVisited[currVertex] = true;
 
-        for (int i = 0; i < N; i++){
-            if (!alreadyVisited[i] && adjacency[currVertex][i] != 0){
-                bfsQueue.push(i);
-                distances[i] = currDistance + 1;
-                alreadyVisited[i] = true;
+            orderAdj.clear();    
+            for (int i = 0; i < M; i++){
+                if (adjacency[currVertex][i] != 0 && alreadyVisited[i] == false){
+                    orderAdj.push_back({degrees[i],i});
+                }
+            }
+            std::sort(orderAdj.begin(), orderAdj.end());
+
+            for (int i = 0; i < orderAdj.size(); i++){
+                bfsQueue.push(orderAdj[i].second);
             }
         }
     }
 
     for (int i = 0; i < M; i++){
-        printf("%d %d\n", i+1, distances[i]);
+        printf("%d %d\n", i, result[i]+1);
     }
 /*
     FILE* outputFile;
