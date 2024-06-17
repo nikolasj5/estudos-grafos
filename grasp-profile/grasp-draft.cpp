@@ -1,8 +1,33 @@
 #include <iostream>
 #include <vector>
 #include <queue>
+#include <climits>
 
 #include "mmio.h"
+
+#define graspMax 10
+
+typedef std::vector<std::vector<double>> adjGraph;
+
+int calcProfile(adjGraph matrixAdj, int matrixSize){
+    int jmin;
+    int profile = 0;
+
+    for (int i = 0; i < matrixSize; i++){
+        jmin = -1;
+        for (int j = 0; j < i && jmin == -1; j++){
+            if (matrixAdj[i][j] != 0){
+                jmin = j;
+            }
+        }
+        if (jmin != -1){
+            profile += i - jmin;
+        }
+    }
+    return profile;
+}
+
+
 
 int main(int argc, char *argv[])
 {
@@ -34,7 +59,8 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    std::vector<std::vector<double>> adjacency(M, std::vector<double>(N+2, 0));
+    //int mSize = M>=N ? M : N;
+    adjGraph adjacency(M, std::vector<double>(N, 0));
     int fi, fj;
 
     for (int i = 0; i < nz; i++){
@@ -46,6 +72,15 @@ int main(int argc, char *argv[])
     }
     fclose(f);
 
+    printf("Profile inicial = %d\n", calcProfile(adjacency, M));
+
+    std::vector<int> bestOrdering;
+    int bestProfile = INT_MAX;
+    for (int graspIter = 0; graspIter < graspMax; graspIter++){
+        Construcao()
+        BuscaLocal        
+    }
+/*
     // Variables for pseudo peripheral node
     int levelR, levelX, currLevel;
     int peripNodeR, peripNodeX, currNode;
@@ -128,6 +163,7 @@ int main(int argc, char *argv[])
     for (int i = 0; i < M; i++){
         printf("%d %d\n", i, result[i]+1);
     }
+*/
 /*
     FILE* outputFile;
     outputFile = fopen("outputBreadth.mtx", "w");
