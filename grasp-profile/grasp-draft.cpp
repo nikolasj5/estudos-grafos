@@ -6,6 +6,7 @@
 #include "mmio.h"
 
 #define graspMax 10
+#define alpha 0.3 // between 0 and 1
 
 typedef std::vector<std::vector<double>> adjGraph;
 
@@ -74,11 +75,18 @@ int main(int argc, char *argv[])
 
     printf("Profile inicial = %d\n", calcProfile(adjacency, M));
 
-    std::vector<int> bestOrdering;
+    std::vector<int> bestSolution;
+    std::vector<int> currSolution;
     int bestProfile = INT_MAX;
+    int currProfile;
     for (int graspIter = 0; graspIter < graspMax; graspIter++){
-        Construcao()
-        BuscaLocal        
+        Construcao(alpha, currSolution);
+        BuscaLocal(currProfile, currSolution); 
+
+        if (currProfile < bestProfile){
+            bestSolution = currSolution;
+            bestProfile = currProfile;
+        }
     }
 /*
     // Variables for pseudo peripheral node
