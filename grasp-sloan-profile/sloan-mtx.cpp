@@ -1,10 +1,19 @@
 #include <iostream>
 #include <vector>
 #include <queue>
+#include <string>
 
 #include "mmio.h"
 
 typedef std::vector<std::vector<double>> adjGraph;
+
+struct Node{
+	int status;
+	float priority;
+	int originalLabel;
+	int degree;
+	int distanceEnd;
+};
 
 int calcProfile(adjGraph matrixAdj, int matrixSize){
 	int jmin;
@@ -12,13 +21,15 @@ int calcProfile(adjGraph matrixAdj, int matrixSize){
 
 	for (int i = 0; i < matrixSize; i++){
 		jmin = -1;
-		for (int j = 0; j < i && jmin == -1; j++){
+		for (int j = 0; jmin == -1 && j < i; j++){
 			if (matrixAdj[i][j] != 0){
 				jmin = j;
 			}
 		}
 		if (jmin != -1){
-			profile += i - jmin;	
+			profile += i - jmin + 1;	
+		}else{
+			profile += 1;
 		}
 	}
 
@@ -31,26 +42,29 @@ int calcProfile(adjGraph matrixAdj, int matrixSize, std::vector<int> ordering){
 
 	for (int i = 0; i < matrixSize; i++){
 		jmin = -1;
-		for (int j = 0; j < i && jmin == -1; j++){
+		for (int j = 0; jmin == -1 && j < i; j++){
 			if (matrixAdj[ordering[i]][ordering[j]] != 0){
 				jmin = j;
 			}
 		}
 		if (jmin != -1){
-			profile += i - jmin;	
+			profile += i - jmin + 1;	
+		}else{
+			profile += 1;
 		}
 	}
 		
 	return profile;
 }
 
-std::pair<int,int> pseudoPeripheral(AdjGraph adjacency){
+std::pair<int,int> pseudoPeripheral(adjGraph adjacency, std::vector<Node>& nodes){
 	// Variables for pseudo peripheral node
 	int levelR, levelX, currLevel;
 	int peripNodeR, peripNodeX, currNode;
 	std::queue<std::pair<int,int>> peripQueue;
 	std::vector<bool> alreadyVisitedR, alreadyVisitedX;
 	int iter = 0;
+	int graphSize = adjacency.size();
 
 	peripNodeR = 1;
 	peripNodeX = 1;
@@ -59,13 +73,13 @@ std::pair<int,int> pseudoPeripheral(AdjGraph adjacency){
 		levelR = 0;
 		peripQueue.push({peripNodeR,levelR});
 		alreadyVisitedR.clear();
-		alreadyVisitedR.resize(M, false);
+		alreadyVisitedR.resize(graphSize, false);
 		alreadyVisitedR[peripNodeR] = true;
 		while (peripQueue.size() > 0){
 			currNode = peripQueue.front().first;
 			currLevel = peripQueue.front().second;
 			peripQueue.pop();
-			for (int i = 0; i < M; i++){
+			for (int i = 0; i < graphSize; i++){
 				if (adjacency[currNode][i] != 0 && alreadyVisitedR[i] == false){
 					alreadyVisitedR[i] = true;
 					peripQueue.push({i, currLevel+1});
@@ -80,16 +94,18 @@ std::pair<int,int> pseudoPeripheral(AdjGraph adjacency){
 		levelX = 0;
 		peripQueue.push({peripNodeX,levelX});
 		alreadyVisitedX.clear();
-		alreadyVisitedX.resize(M, false);
+		alreadyVisitedX.resize(graphSize, false);
 		alreadyVisitedX[peripNodeX] = true;
+		nodes[peripNodeX].distanceEnd = 0;
 		while (peripQueue.size() > 0){
 			currNode = peripQueue.front().first;
 			currLevel = peripQueue.front().second;
 			peripQueue.pop();
-			for (int i = 0; i < M; i++){
+			for (int i = 0; i < graphSize; i++){
 				if (adjacency[currNode][i] != 0 && alreadyVisitedX[i] == false){
 					alreadyVisitedX[i] = true;
 					peripQueue.push({i, currLevel+1});
+					nodes[i].distanceEnd = currLevel + 1;
 					if (currLevel+1 > levelX){
 						levelX = currLevel + 1;
 					}
@@ -105,16 +121,94 @@ std::pair<int,int> pseudoPeripheral(AdjGraph adjacency){
 #define inactive 	1
 #define preactive 	2
 #define active 		3
-#define posactive 	4
-void sloanAlgo(AdjGraph adjacency, std::vector<int>& solution, int w1 = 2, int w2 = 1){
+#define postactive 	4
+
+void sloanAlgo(adjGraph adjacency, std::vector<int>& solution, int w1 = 1, int w2 = 2){
+	// Sloan
+	int graphSize = adjacency.size();
+
+	// Passing through all nodes setting initial properties
+	std::vector<Node> nodes(graphSize);
+	int cont;
+	for (int  i = 0; i < graphSize; i++){
+		nodes[i].priority = 0;
+		nodes[i].originalLabel = i;
+		cont = 0;
+		for (int j = 0; j < graphSize; j++){
+			if (adjacency[i][j] != 0) cont++;
+		}
+		nodes[i].degree = cont;
+		nodes[i].distanceEnd = -1;
+	}
+
 	// Getting peripheral nodes from George and Liu method
 	std::pair<int,int> peripheral;
-	peripheral = pseudoPeripheral(adjacency);
+	peripheral = pseudoPeripheral(adjacency, nodes);
 	
-	// Sloan
-	std::vector<int> nodeStatus;
-	std::vector<float> nodePriority;
-	for (int  i = 0; i < s
+	for (int i = 0; i < graphSize; i++){
+		nodes[i].status = inactive;
+		nodes[i].priority = w1 * nodes[i].distanceEnd - w2 * (nodes[i].degree + 1);
+	}
+	
+	std::priority_queue<std::pair<int, int>> heap, temp_heap;
+
+	nodes[peripheral.first].status = preactive;
+	heap.push({nodes[peripheral.first].priority, peripheral.first});
+
+	//solution.push_back(peripheral.first);
+	
+	int currNode;
+	while (!heap.empty()){
+		currNode = heap.top().second;
+		heap.pop();
+
+		if (nodes[currNode].status == preactive){
+			for (int j = 0; j < graphSize; j++){
+				if (adjacency[currNode][j] != 0){
+					nodes[j].priority += w2;
+					if (nodes[j].status == inactive){
+						nodes[j].status = preactive;
+						heap.push({nodes[j].priority, j});
+					}
+				}
+			}
+		}
+		solution.push_back(currNode);
+		nodes[currNode].status = postactive;
+		
+		for (int j = 0; j < graphSize; j++){
+			if (adjacency[currNode][j] != 0 && nodes[j].status == preactive){
+				nodes[j].status = active;
+				nodes[j].priority += w2;
+				
+				for (int k = 0; k < graphSize; k++){
+					if (adjacency[j][k] != 0 && nodes[k].status != postactive){
+						nodes[k].priority += w2;
+						if (nodes[k].status == inactive){
+							nodes[k].status = preactive;
+							heap.push({nodes[k].priority, k});
+						}
+					}
+				}
+			}
+		}
+		
+		int index;
+		if (!temp_heap.empty()) std::cout << "temp_heap arriving wrong" << std::endl;
+		while (!heap.empty()){
+			index = heap.top().second;
+			heap.pop();
+			
+			temp_heap.push({nodes[index].priority, index});
+		}
+		heap.swap(temp_heap);
+	}
+	
+	for (int i = 0; i < graphSize; i++){
+		if (nodes[i].status != postactive) {
+			solution.push_back(i);
+		}
+	}
 }
 
 int main(int argc, char *argv[])
@@ -154,14 +248,19 @@ int main(int argc, char *argv[])
 		fscanf(f, "%d %d ", &fi, &fj);
 		--fi;
 		--fj;
-		fscanf(f, "%lg\n", &adjacency[fi][fj]);
-		adjacency[fj][fi] = adjacency[fi][fj];
+		//fscanf(f, "%lg\n", &adjacency[fi][fj]);
+		adjacency[fi][fj] = 1;
+		adjacency[fj][fi] = 1;
 	}
 	fclose(f);
 
-	printf("Profile inicial = %d\n", calcProfile(adjacency, M));
+	std::cout << "---------------" << std::endl;	
+	std::string instance_name(argv[1]);
+	instance_name = instance_name.substr(instance_name.find("/")+1);
+	std::cout << instance_name << std::endl;
+	std::cout << std::endl;
 
-	
+	printf("Profile inicial = %d\n", calcProfile(adjacency, M));
 
 	// Auxiliary varibles for the bfs algorithm
 	std::queue<int> bfsQueue;
@@ -169,11 +268,14 @@ int main(int argc, char *argv[])
 	std::vector<bool> alreadyVisited;
 	int currDistance;
 	int currVertex;
+/*	
+	std::vector<Node> aaa(adjacency.size());
+	int startNode = pseudoPeripheral(adjacency, aaa).first;
 
 	// Initialization for aux variables
-	bfsQueue.push(peripNodeX);
+	bfsQueue.push(startNode);
 	alreadyVisited.resize(M, false);
-	alreadyVisited[peripNodeX] = true;
+	alreadyVisited[startNode] = true;
 
 	// BFS main loop
 	while (!bfsQueue.empty()){
@@ -188,8 +290,11 @@ int main(int argc, char *argv[])
 			}
 		}
 	}
+	printf("Profile final rbfs-gl = %d\n", calcProfile(adjacency, M, result));
+*/	
+	sloanAlgo(adjacency, result);
 
-	printf("Profile final = %d\n", calcProfile(adjacency, M, result));
+	std::cout << "Profile final sloan = " << calcProfile(adjacency, M, result) << std::endl;
 /*
 	FILE* outputFile;
 	outputFile = fopen("outputBreadth.mtx", "w");
